@@ -1,13 +1,21 @@
 package main
 
 import (
+	"bufio"
 	"errors"
+	"log"
 	"math"
 	"math/rand"
+	"os"
 	"time"
 
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
+
+func main() {
+
+}
 
 type neuralNet struct {
 	config  neuralNetConfig
@@ -114,7 +122,7 @@ func (nn *neuralNet) backpropagate(x, y, wHidden, bHidden, wOut, bOut, output *m
 		wOutAdj := new(mat.Dense)
 		wOutAdj.Mul(hiddenLayerActivations.T(), dOutput)
 		wOutAdj.Scale(nn.config.learningRate, wOutAdj)
-		wOutAdj.add(wOut, wOutAdj)
+		wOutAdj.Add(wOut, wOutAdj)
 
 		bOutAdj, err := sumAlongAxis(0, dOutput)
 		if err != nil {
@@ -164,4 +172,48 @@ func sumAlongAxis(axis int, m *mat.Dense) (*mat.Dense, error) {
 	}
 
 	return output, nil
+}
+
+func (nn neuralNet) predict(x *mat.Dense) (*mat.Dense, error) {
+	output := new(mat.Dense)
+
+	hiddenLayerInput := new(mat.Dense)
+	hiddenLayerInput.Mul(x, &nn.wHidden)
+	addBHidden := func(_, col int, v float64) float64 { return v + nn.bHidden.At(0, col) }
+	hiddenLayerInput.Apply(addBHidden, hiddenLayerInput)
+
+	hiddenLayerActivations := new(mat.Dense)
+	applySigmoid := func(_, _ int, v float64) float64 { return sigmoid(v) }
+	hiddenLayerActivations.Apply(applySigmoid, hiddenLayerInput)
+
+	outputLayerInput := new(mat.Dense)
+	outputLayerInput.Mul(hiddenLayerActivations, &nn.wOut)
+	addBOut := func(_, col int, v float64) float64 { return v + nn.bOut.At(0, col) }
+	outputLayerInput.Apply(addBOut, outputLayerInput)
+	output.Apply(applySigmoid, outputLayerInput)
+
+	return output, nil
+}
+
+func makeInputAndLabels(fileName string) (*mat.Dense, *mat.Dense) {
+	var X []string
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		X = append(X, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	inputsData := make([]float64, 28*len(X))
+	labelsData := make([]float64, 7*len(X))
 }
